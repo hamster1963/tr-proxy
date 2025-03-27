@@ -1,12 +1,16 @@
 package G2Proxy
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/gogf/gf/v2/util/gconv"
+	"google.golang.org/grpc"
+	"io"
 	"log"
 	"net/http"
-	"net/rpc"
-	"net/rpc/jsonrpc"
+	"reflect"
 )
 
 func HandleToRPC(c *gin.Context) {
@@ -57,15 +61,40 @@ func HandleToRPC(c *gin.Context) {
 		Safes:  1,
 		Login:  1,
 	}
-	var result = &G2ResData{}
+
+	grpcClient := NewG2GrpcClient(client)
 
 	// 调用远程方法
-	err = client.Call("Provide.Service", args, result)
+	cs, err := grpcClient.Service(context.Background(), args)
 	if err != nil {
-		fmt.Println(err)
-		c.JSON(500, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
-	c.JSON(200, result)
+
+	oPars := &G2ResData{}
+
+	for {
+		mRes, e4 := cs.Recv()
+
+		if e4 == io.EOF {
+			break
+		}
+
+		if e4 != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": e4.Error()})
+			return
+		}
+		//..........................................................................
+
+		// 输出转换
+		if e5 := MergeStructs(mRes, oPars); e5 != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": e5.Error()})
+			return
+		}
+		//..........................................................................
+
+	}
+	c.JSON(200, oPars)
 }
 
 type RpcClient struct {
@@ -73,12 +102,70 @@ type RpcClient struct {
 	address  string
 }
 
-func (c *RpcClient) NewClient() (*rpc.Client, error) {
-	// 连接到 RPC 服务
-	client, err := jsonrpc.Dial("tcp", "localhost:9890")
+func (c *RpcClient) NewClient() (*grpc.ClientConn, error) {
+	// 连接到 GRPC 服务
+	client, err := grpc.Dial("localhost:9890", grpc.WithInsecure())
+
 	if err != nil {
 		log.Println("Dialing:", err)
 		return nil, err
 	}
 	return client, nil
+}
+
+func MergeStructs(iFr, iTo interface{}) error {
+
+	// 对象转换
+	Change := func() error {
+		v, e1 := json.Marshal(iFr) //
+		if e1 != nil {
+			return e1
+		}
+		//..............................................................................
+
+		e := json.Unmarshal(v, iTo)
+		if e != nil {
+			return e1
+		}
+		//..............................................................................
+		return nil
+	}
+	//..................................................................................
+
+	// 输出转换
+	mFr := reflect.ValueOf(iFr).Elem() //实例
+	f, b := mFr.Type().FieldByName("OutData")
+
+	if b && f.Type.String() == "string" {
+		if e1 := Change(); e1 != nil {
+			return e1
+		}
+
+		v := make([]interface{}, 0)
+		Out := iFr.(*G2ResData).OutData
+		e2 := json.Unmarshal([]byte(Out), &v)
+		if e2 != nil {
+			return e2
+		}
+		iTo.(*G2ResData).OutData = gconv.String(v[0])
+		return nil
+	}
+	//..................................................................................
+
+	// 输出转换
+	if b {
+		Out := []interface{}{iFr.(*G2ResData).OutData}
+		v, e1 := json.Marshal(Out)
+		if e1 != nil {
+			return e1
+		}
+		iFr.(*G2ResData).OutData = string(v)
+		if e2 := Change(); e2 != nil {
+			return e2
+		} else {
+			return nil
+		}
+	}
+	//..................................................................................
+	return Change()
 }
