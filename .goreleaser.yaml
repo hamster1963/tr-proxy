@@ -5,7 +5,9 @@ builds:
       - linux_amd64
       - windows_amd64
       - darwin_arm64
-upx:
-  enabled: true
-  compress: best
-  lzma: true
+    ldflags:
+      - -s -w
+#upx:
+#  enabled: true
+#  compress: best
+#  lzma: true
