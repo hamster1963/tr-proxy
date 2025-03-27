@@ -7,7 +7,16 @@ builds:
       - darwin_arm64
     ldflags:
       - -s -w
-#upx:
-#  enabled: true
-#  compress: best
-#  lzma: true
+
+upx:
+  - # Whether to enable it or not.
+    #
+    # Templates: allowed.
+    enabled: true
+
+    # Compress argument.
+    # Valid options are from '1' (faster) to '9' (better), and 'best'.
+    compress: best
+
+    # Whether to try LZMA (slower).
+    lzma: true
