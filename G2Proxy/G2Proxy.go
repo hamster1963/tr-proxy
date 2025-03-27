@@ -12,6 +12,21 @@ import (
 	"reflect"
 )
 
+type ResData struct {
+	RetCode int         //输出代码
+	Message string      //输出消息
+	OutData interface{} //输出结果
+	Succeed int         //运行状态
+	OutType string      //输出类型
+
+	RunSafe int     //运行权限
+	RunFlag int     //登录状态
+	RunTime float64 //运行耗时
+	SrvTime int64   //服务时间
+	TokenID string  //运行身份
+	state   int     //发送状态
+}
+
 func HandleToRPC(c *gin.Context) {
 
 	clientConfig := &RpcClient{
@@ -70,7 +85,7 @@ func HandleToRPC(c *gin.Context) {
 		return
 	}
 
-	oPars := &G2ResData{}
+	oPars := &ResData{}
 
 	for {
 		mRes, e4 := cs.Recv()
@@ -146,7 +161,7 @@ func MergeStructs(iFr, iTo interface{}) error {
 		if e2 != nil {
 			return e2
 		}
-		iTo.(*G2ResData).OutData = v[0].(string)
+		iTo.(*ResData).OutData = v[0]
 		return nil
 	}
 	//..................................................................................
