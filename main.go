@@ -1,8 +1,8 @@
 package main
 
 import (
-	"awesomeProject/G2Proxy"
 	"github.com/gin-gonic/gin"
+	"tr-proxy/G2Proxy"
 )
 
 func main() {
