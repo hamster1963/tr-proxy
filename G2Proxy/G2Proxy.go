@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/grpc"
 	"io"
 	"log"
@@ -147,7 +146,7 @@ func MergeStructs(iFr, iTo interface{}) error {
 		if e2 != nil {
 			return e2
 		}
-		iTo.(*G2ResData).OutData = gconv.String(v[0])
+		iTo.(*G2ResData).OutData = v[0].(string)
 		return nil
 	}
 	//..................................................................................
