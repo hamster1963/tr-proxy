@@ -85,30 +85,30 @@ func HandleToRPC(c *gin.Context) {
 		return
 	}
 
-	oPars := &ResData{}
+	// 设置响应头
+	c.Header("Content-Type", "application/json")
+	c.Header("Transfer-Encoding", "chunked")
 
-	for {
+	c.Stream(func(w io.Writer) bool {
 		mRes, e4 := cs.Recv()
-
 		if e4 == io.EOF {
-			break
+			return false
 		}
-
 		if e4 != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": e4.Error()})
-			return
+			json.NewEncoder(w).Encode(gin.H{"error": e4.Error()})
+			return false
 		}
-		//..........................................................................
 
-		// 输出转换
+		oPars := &ResData{}
 		if e5 := MergeStructs(mRes, oPars); e5 != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": e5.Error()})
-			return
+			json.NewEncoder(w).Encode(gin.H{"error": e5.Error()})
+			return false
 		}
-		//..........................................................................
 
-	}
-	c.JSON(200, oPars)
+		// 将数据写入响应流
+		json.NewEncoder(w).Encode(oPars)
+		return true
+	})
 }
 
 type RpcClient struct {
