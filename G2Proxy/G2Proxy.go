@@ -3,7 +3,6 @@ package G2Proxy
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
 	"io"
@@ -42,7 +41,27 @@ func HandleToRPC(c *gin.Context) {
 
 	// 获取请求路径
 	path := c.Param("path")
-	fmt.Println(path)
+
+	// 去除最后的.G2
+	if len(path) > 3 && path[len(path)-3:] == ".G2" {
+		path = path[:len(path)-3]
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid path format - must end with .G2"})
+		return
+	}
+
+	// 去除第一个斜杠到第二个斜杠之间的内容
+	if len(path) > 1 && path[0] == '/' {
+		slashIndex := 1
+		for i, char := range path[1:] {
+			if char == '/' {
+				slashIndex = i + 1
+				break
+			}
+		}
+		path = path[slashIndex:]
+	}
+
 	// 解析表单数据
 	if err := c.Request.ParseForm(); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form"})
