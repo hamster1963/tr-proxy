@@ -3,12 +3,14 @@ package G2Proxy
 import (
 	"context"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
-	"google.golang.org/grpc"
 	"io"
 	"log"
 	"net/http"
 	"reflect"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 )
 
 type ResData struct {
@@ -77,7 +79,7 @@ func HandleToRPC(c *gin.Context) {
 	// 准备请求参数
 	args := &G2ReqData{
 		Id:     "",
-		Addr:   "",
+		Addr:   "1.1.1.1",
 		Host:   "",
 		Port:   "",
 		Envs:   "",
@@ -104,9 +106,18 @@ func HandleToRPC(c *gin.Context) {
 		return
 	}
 
+	streamAsSSE := strings.EqualFold(strings.TrimSpace(c.GetHeader("XStream")), "true")
+
 	// 设置响应头
-	c.Header("Content-Type", "application/json")
-	c.Header("Transfer-Encoding", "chunked")
+	if streamAsSSE {
+		c.Header("Content-Type", "text/event-stream; charset=utf-8")
+		c.Header("Cache-Control", "no-cache")
+		c.Header("Connection", "keep-alive")
+		c.Header("X-Accel-Buffering", "no")
+	} else {
+		c.Header("Content-Type", "application/json")
+		c.Header("Transfer-Encoding", "chunked")
+	}
 
 	c.Stream(func(w io.Writer) bool {
 		mRes, e4 := cs.Recv()
@@ -114,20 +125,38 @@ func HandleToRPC(c *gin.Context) {
 			return false
 		}
 		if e4 != nil {
-			json.NewEncoder(w).Encode(gin.H{"error": e4.Error()})
+			writeStreamError(c, w, streamAsSSE, e4)
 			return false
 		}
 
 		oPars := &ResData{}
 		if e5 := MergeStructs(mRes, oPars); e5 != nil {
-			json.NewEncoder(w).Encode(gin.H{"error": e5.Error()})
+			writeStreamError(c, w, streamAsSSE, e5)
 			return false
 		}
 
-		// 将数据写入响应流
-		json.NewEncoder(w).Encode(oPars)
+		writeStreamData(c, w, streamAsSSE, oPars)
 		return true
 	})
+}
+
+func writeStreamData(c *gin.Context, w io.Writer, streamAsSSE bool, data interface{}) {
+	if streamAsSSE {
+		c.SSEvent("message", data)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(data)
+}
+
+func writeStreamError(c *gin.Context, w io.Writer, streamAsSSE bool, err error) {
+	payload := gin.H{"error": err.Error()}
+	if streamAsSSE {
+		c.SSEvent("error", payload)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 type RpcClient struct {
